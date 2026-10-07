@@ -19,7 +19,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
 from evaluate import calibration_by_decile, recall_table
-from features import HORIZON, MODES, RADII_M
+from features import MODES, RADII_M
 
 ROOT = Path(__file__).resolve().parent.parent
 FEATURE_DIR = ROOT / "data" / "features"
@@ -41,7 +41,7 @@ def load(years):
 
 
 def exposure(frame):
-    return frame.km.to_numpy() * HORIZON
+    return frame.km.to_numpy() * frame.horizon.to_numpy()
 
 
 def fit_rule(train, test, numeric, seed):

@@ -1,8 +1,10 @@
 """Build one row per (pipe, planning date) with features known at that date and the 5-year break count.
 
 Usage:
-    python src/features.py      # writes data/features/frame_<year>.parquet for every planning date
+    python src/features.py                                   # 5-year horizon, planning dates every 5 years
+    python src/features.py --horizon 1 --annual --out data/features_annual
 """
+import argparse
 from pathlib import Path
 
 import numpy as np
@@ -40,10 +42,11 @@ def neighbour_pairs(breaks, geoms, radius):
     return pairs[pairs.pipe_idx != breaks.pipe_idx.values[break_rows]]
 
 
-def build_frame(year, pipes, breaks, neighbours):
+def build_frame(year, pipes, breaks, neighbours, horizon=HORIZON):
     """Pipes in the ground before 1 Jan `year`, described with information available on that date."""
     f = pipes[(pipes.year < year) & (pipes.length > 0)].copy()
     f["planning_year"] = year
+    f["horizon"] = horizon
     f["km"] = f.length / 1000
     f["age"] = year - f.year
     f["log_length"] = np.log(f.length.clip(lower=1))
@@ -64,20 +67,27 @@ def build_frame(year, pipes, breaks, neighbours):
         f[f"nearby_{radius}m_10y"] = f.index.map(p[p.break_year >= year - 10].groupby("pipe_idx").size()).fillna(0)
         f[f"nearby_{radius}m_decay"] = f.index.map(np.exp(-(year - p.break_year) / 5).groupby(p.pipe_idx).sum()).fillna(0)
 
-    future = breaks[breaks.break_year.between(year, year + HORIZON - 1)]
+    future = breaks[breaks.break_year.between(year, year + horizon - 1)]
     f["target"] = f.index.map(future.groupby("pipe_idx").size()).fillna(0)
     return f.drop(columns=["globalid", "status_ind"]).rename(columns={"year": "install_year", "diam": "diameter"})
 
 
 def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--horizon", type=int, default=HORIZON)
+    ap.add_argument("--annual", action="store_true", help="a planning date every year 1996-2025")
+    ap.add_argument("--out", type=Path, default=OUT_DIR)
+    args = ap.parse_args()
+    years = range(1996, 2026) if args.annual else PLANNING_YEARS
+
     pipes, geoms = load_pipes()
     breaks = usable_breaks(pipes, geoms)
     neighbours = {r: neighbour_pairs(breaks, geoms, r) for r in RADII_M}
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    for year in PLANNING_YEARS:
-        frame = build_frame(year, pipes, breaks, neighbours)
-        frame.to_parquet(OUT_DIR / f"frame_{year}.parquet")
-        print(f"{year}: {len(frame):,} pipes, {int(frame.target.sum()):,} breaks in the next {HORIZON} years")
+    args.out.mkdir(parents=True, exist_ok=True)
+    for year in years:
+        frame = build_frame(year, pipes, breaks, neighbours, args.horizon)
+        frame.to_parquet(args.out / f"frame_{year}.parquet")
+        print(f"{year}: {len(frame):,} pipes, {int(frame.target.sum()):,} breaks in the next {args.horizon} year(s)")
 
 
 if __name__ == "__main__":

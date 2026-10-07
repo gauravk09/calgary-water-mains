@@ -13,3 +13,11 @@ stages:
       - data/raw
     outs:
       - data/features
+  features_annual:
+    cmd: python src/features.py --horizon 1 --annual --out data/features_annual
+    deps:
+      - src/data.py
+      - src/features.py
+      - data/raw
+    outs:
+      - data/features_annual
