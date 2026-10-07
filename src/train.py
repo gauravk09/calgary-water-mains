@@ -40,8 +40,11 @@ def load(years):
     return pd.concat([pd.read_parquet(FEATURE_DIR / f"frame_{y}.parquet") for y in years], ignore_index=True)
 
 
+MIN_EXPOSURE_KM = 0.01   # segments shorter than 10 m count as 10 m; tiny offsets made boosting unstable
+
+
 def exposure(frame):
-    return frame.km.to_numpy() * frame.horizon.to_numpy()
+    return frame.km.clip(lower=MIN_EXPOSURE_KM).to_numpy() * frame.horizon.to_numpy()
 
 
 def fit_rule(train, test, numeric, seed):
