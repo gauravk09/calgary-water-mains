@@ -2,7 +2,7 @@
 import numpy as np
 import pandas as pd
 
-BUDGETS = [0.005, 0.01, 0.02, 0.05]
+BUDGETS = [0.0025, 0.005, 0.01, 0.02, 0.05]
 
 
 def recall_at_budget(frame, score, budget):
