@@ -25,12 +25,14 @@ City of Calgary Open Data, [Open Government Licence – City of Calgary](https:/
 python3.11 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
-python src/download_data.py
 ```
 
 ## Reproducing results
 
-1. `notebooks/01_eda.ipynb` — data exploration
+1. `dvc repro` — downloads the data and builds the feature tables (`data/features/`); `dvc.lock` records the exact file versions used
+2. `notebooks/01_eda.ipynb` — data exploration
+3. `python src/train.py --model rule` — train and evaluate a method on the validation window; every run is logged to MLflow
+4. `mlflow ui --backend-store-uri sqlite:///mlflow.db` — compare runs
 
 ## Repository structure
 
