@@ -28,6 +28,10 @@ pip install -r requirements.txt
 python src/download_data.py
 ```
 
+## Reproducing results
+
+1. `notebooks/01_eda.ipynb` — data exploration
+
 ## Repository structure
 
 ```
