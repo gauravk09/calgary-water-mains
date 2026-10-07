@@ -15,8 +15,12 @@ def recall_at_budget(frame, score, budget):
 
 
 def recall_table(frame, score):
-    """Recall at every budget, overall and for pipes with no break history."""
+    """Recall and lift over random at every budget, overall and for pipes with no break history.
+
+    Lift = recall / budget: picking pipes at random catches ~budget share of breaks, so lift 1 = no skill.
+    """
     out = {f"R@{b * 100:g}%": recall_at_budget(frame, score, b) for b in BUDGETS}
+    out.update({f"lift@{b * 100:g}%": out[f"R@{b * 100:g}%"] / b for b in BUDGETS})
     clean = (frame.breaks_all == 0).to_numpy()
     out.update({f"R@{b * 100:g}%_no_history": recall_at_budget(frame[clean], np.asarray(score)[clean], b) for b in BUDGETS})
     return out
