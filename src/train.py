@@ -12,8 +12,9 @@ import numpy as np
 import pandas as pd
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import IsolationForest
+from sklearn.linear_model import PoissonRegressor
 from sklearn.pipeline import make_pipeline
-from sklearn.preprocessing import OneHotEncoder, StandardScaler
+from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
 from evaluate import calibration_by_decile, recall_table
 from features import HORIZON
@@ -27,6 +28,7 @@ SPLITS = {"validation": ([1996, 2001, 2006, 2011], 2016), "test": ([1996, 2001, 
 
 BASE = ["age", "diameter", "log_length", "breaks_all", "breaks_10y", "breaks_per_km",
         "breaks_per_km_10y", "years_since_break"]
+CATEGORICAL = ["material", "p_zone"]
 FEATURE_SETS = {"base": BASE}
 
 
@@ -52,7 +54,18 @@ def fit_isolation_forest(train, test, numeric):
     return -model.score_samples(test), None, {"n_estimators": 300}
 
 
-MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest}
+def fit_glm(train, test, numeric):
+    """Poisson regression on break rate per km-year, weighted by exposure."""
+    log1p = FunctionTransformer(np.log1p, feature_names_out="one-to-one")
+    pre = ColumnTransformer([("num", make_pipeline(log1p, StandardScaler()), numeric),
+                             ("cat", OneHotEncoder(handle_unknown="ignore", min_frequency=200), CATEGORICAL)])
+    model = make_pipeline(pre, PoissonRegressor(alpha=1e-3, max_iter=3000))
+    model.fit(train, train.target / exposure(train), poissonregressor__sample_weight=exposure(train))
+    rate = model.predict(test)
+    return rate, rate * exposure(test), {"alpha": 1e-3}
+
+
+MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest, "glm": fit_glm}
 
 
 def main():
