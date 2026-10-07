@@ -18,7 +18,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import FunctionTransformer, OneHotEncoder, StandardScaler
 
 from evaluate import calibration_by_decile, recall_table
-from features import HORIZON, MODES
+from features import HORIZON, MODES, RADII_M
 
 ROOT = Path(__file__).resolve().parent.parent
 FEATURE_DIR = ROOT / "data" / "features"
@@ -30,8 +30,9 @@ SPLITS = {"validation": ([1996, 2001, 2006, 2011], 2016), "test": ([1996, 2001, 
 BASE = ["age", "diameter", "log_length", "breaks_all", "breaks_10y", "breaks_per_km",
         "breaks_per_km_10y", "years_since_break"]
 TYPES = [f"past_{m}" for m in MODES.values()]
+NEARBY = [f"nearby_{r}m_{k}" for r in RADII_M for k in ("10y", "decay")]
 CATEGORICAL = ["material", "p_zone"]
-FEATURE_SETS = {"base": BASE, "types": BASE + TYPES}
+FEATURE_SETS = {"base": BASE, "types": BASE + TYPES, "nearby": BASE + NEARBY, "all": BASE + TYPES + NEARBY}
 
 
 def load(years):
