@@ -10,6 +10,10 @@ from pathlib import Path
 import mlflow
 import numpy as np
 import pandas as pd
+from sklearn.compose import ColumnTransformer
+from sklearn.ensemble import IsolationForest
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import OneHotEncoder, StandardScaler
 
 from evaluate import calibration_by_decile, recall_table
 from features import HORIZON
@@ -39,7 +43,16 @@ def fit_rule(train, test, numeric):
     return test.breaks_per_km.to_numpy(), None, {}
 
 
-MODELS = {"rule": fit_rule}
+def fit_isolation_forest(train, test, numeric):
+    """Unsupervised: ranks pipes by how unusual their features are. Never sees the target."""
+    pre = ColumnTransformer([("num", StandardScaler(), numeric),
+                             ("cat", OneHotEncoder(handle_unknown="ignore", min_frequency=200), ["material"])])
+    model = make_pipeline(pre, IsolationForest(n_estimators=300, random_state=SEED))
+    model.fit(train)
+    return -model.score_samples(test), None, {"n_estimators": 300}
+
+
+MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest}
 
 
 def main():
