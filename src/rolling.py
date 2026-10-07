@@ -15,7 +15,7 @@ import mlflow
 import numpy as np
 import pandas as pd
 
-from evaluate import recall_table
+from evaluate import BUDGETS, caught_at_budget, recall_table
 from train import FEATURE_SETS, MODELS, ROOT, STOCHASTIC, load
 
 ANNUAL_DIR = ROOT / "data" / "features_annual"
@@ -30,8 +30,8 @@ def annual_scores(year, window, model, numeric, seed):
     first = 1996 if window == "all" else year - int(window)
     train = load_annual(range(first, year)).reset_index(drop=True)
     test = load_annual([year])
-    score, _, _ = MODELS[model](train, test.reset_index(drop=True), numeric, seed)
-    return test, score
+    score, expected, _ = MODELS[model](train, test.reset_index(drop=True), numeric, seed)
+    return test, score, expected
 
 
 def five_year_scores(year, start, model, numeric, seed):
@@ -41,7 +41,7 @@ def five_year_scores(year, start, model, numeric, seed):
     score, _, _ = MODELS[model](load(train_years), frame_start.reset_index(drop=True), numeric, seed)
     ranking = pd.Series(score, index=frame_start.index)
     test = load_annual([year])
-    return test, ranking.reindex(test.index).fillna(-np.inf).to_numpy()
+    return test, ranking.reindex(test.index).fillna(-np.inf).to_numpy(), None
 
 
 def main():
@@ -58,13 +58,26 @@ def main():
     seeds = range(args.seeds if args.model in STOCHASTIC else 1)
 
     rows = []
+    # Recalibration: scale this year's expected count by last year's actual/predicted ratio (past data only).
+    need_prior = args.design == "annual" and args.model in ("glm", "lgbm", "xgb")
+    prior_ratio = {}
+    if need_prior:
+        for seed in seeds:
+            t, _, e = annual_scores(years[0] - 1, args.window, args.model, numeric, seed)
+            prior_ratio[seed] = t.target.sum() / e.sum()
     for year in years:
         for seed in seeds:
             if args.design == "annual":
-                test, score = annual_scores(year, args.window, args.model, numeric, seed)
+                test, score, expected = annual_scores(year, args.window, args.model, numeric, seed)
             else:
-                test, score = five_year_scores(year, years[0], args.model, numeric, seed)
-            rows.append({"year": year, "seed": seed, **recall_table(test, score)})
+                test, score, expected = five_year_scores(year, years[0], args.model, numeric, seed)
+            row = {"year": year, "seed": seed, "breaks": test.target.sum(), **recall_table(test, score)}
+            row.update({f"caught@{b * 100:g}%": caught_at_budget(test, score, b) for b in BUDGETS})
+            if expected is not None:
+                row["predicted"] = expected.sum()
+                row["predicted_recalibrated"] = expected.sum() * prior_ratio[seed]
+                prior_ratio[seed] = test.target.sum() / expected.sum()
+            rows.append(row)
     per_year = pd.DataFrame(rows).groupby("year").mean().drop(columns="seed")
 
     name = f"{args.design}{'' if args.design == 'five_year' else '-w' + args.window}-{args.model}-{args.features}-{args.split}"
@@ -74,11 +87,21 @@ def main():
         mlflow.log_params({"design": args.design, "window": args.window if args.design == "annual" else "n/a",
                            "model": args.model, "features": args.features, "split": args.split,
                            "years": list(years), "n_seeds": len(seeds)})
-        means = per_year.mean().to_dict()
+        means = per_year.drop(columns=[c for c in per_year if c.startswith("caught") or c in ("breaks", "predicted", "predicted_recalibrated")]).mean().to_dict()
+        for b in BUDGETS:
+            pooled = per_year[f"caught@{b * 100:g}%"].sum() / per_year.breaks.sum()
+            means[f"pooled_R@{b * 100:g}%"] = pooled
+            means[f"pooled_lift@{b * 100:g}%"] = pooled / b
+        if "predicted" in per_year:
+            means["predicted_over_actual_raw"] = per_year.predicted.sum() / per_year.breaks.sum()
+            means["predicted_over_actual_recalibrated"] = per_year.predicted_recalibrated.sum() / per_year.breaks.sum()
         mlflow.log_metrics({k.replace("@", "_at_").replace("%", "pct").replace(".", "_"): v for k, v in means.items()})
         mlflow.log_text(per_year.round(4).to_csv(), "per_year.csv")
-    print(f"{name}: " + "  ".join(f"{k}={means[k]:.3f}" for k in ["R@0.25%", "R@1%", "R@0.25%_no_history", "R@1%_no_history"]))
-    print((per_year[["R@0.25%", "R@1%"]] * 100).round(1).T.to_string())
+    keys = ["pooled_R@0.25%", "pooled_lift@0.25%", "pooled_R@1%", "R@0.25%_no_history", "R@1%_no_history",
+            "predicted_over_actual_raw", "predicted_over_actual_recalibrated"]
+    print(f"{name}: " + "  ".join(f"{k}={means[k]:.3f}" for k in keys if k in means))
+    cols = [c for c in ["breaks", "caught@0.25%", "predicted", "predicted_recalibrated"] if c in per_year]
+    print(per_year[cols].round(1).T.to_string())
 
 
 if __name__ == "__main__":

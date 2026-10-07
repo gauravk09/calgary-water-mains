@@ -5,13 +5,18 @@ import pandas as pd
 BUDGETS = [0.0025, 0.005, 0.01, 0.02, 0.05]
 
 
-def recall_at_budget(frame, score, budget):
-    """Share of future breaks on the top-scored pipes that together make up `budget` of total length."""
+def caught_at_budget(frame, score, budget):
+    """Breaks on the top-scored pipes that together make up `budget` of total length."""
     order = np.argsort(-np.asarray(score), kind="stable")
     length = frame.length.to_numpy()[order]
     target = frame.target.to_numpy()[order]
     within = np.cumsum(length) <= budget * length.sum()
-    return target[within].sum() / target.sum()
+    return target[within].sum()
+
+
+def recall_at_budget(frame, score, budget):
+    """Share of future breaks on the top-scored pipes that together make up `budget` of total length."""
+    return caught_at_budget(frame, score, budget) / frame.target.sum()
 
 
 def recall_table(frame, score):
