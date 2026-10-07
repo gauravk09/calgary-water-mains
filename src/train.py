@@ -11,6 +11,7 @@ import lightgbm as lgb
 import mlflow
 import numpy as np
 import pandas as pd
+import xgboost as xgb
 from sklearn.compose import ColumnTransformer
 from sklearn.ensemble import IsolationForest
 from sklearn.linear_model import PoissonRegressor
@@ -87,7 +88,26 @@ def fit_lgbm(train, test, numeric, params=LGBM_PARAMS):
     return rate, rate * exposure(test), {**params, "importance": importance / importance.sum()}
 
 
-MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest, "glm": fit_glm, "lgbm": fit_lgbm}
+XGB_PARAMS = {"objective": "count:poisson", "n_estimators": 500, "learning_rate": 0.03, "max_depth": 4,
+              "min_child_weight": 5, "subsample": 0.8, "colsample_bytree": 0.8, "tree_method": "hist",
+              "enable_categorical": True, "random_state": SEED}
+
+
+def fit_xgb(train, test, numeric, params=XGB_PARAMS):
+    """Same tree-boosting idea as LightGBM, but trees grow level by level; offset via base_margin."""
+    cols = numeric + CATEGORICAL
+    def prep(f):
+        x = f[cols].copy()
+        for c in CATEGORICAL:
+            x[c] = pd.Categorical(x[c], categories=sorted(train[c].dropna().unique()))
+        return x
+    model = xgb.XGBRegressor(**params).fit(prep(train), train.target, base_margin=np.log(exposure(train)))
+    rate = np.exp(model.predict(prep(test), output_margin=True, base_margin=np.zeros(len(test))))
+    importance = pd.Series(model.feature_importances_, index=cols)
+    return rate, rate * exposure(test), {**params, "importance": importance / importance.sum()}
+
+
+MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest, "glm": fit_glm, "lgbm": fit_lgbm, "xgb": fit_xgb}
 
 
 def main():
