@@ -44,21 +44,21 @@ def exposure(frame):
     return frame.km.to_numpy() * HORIZON
 
 
-def fit_rule(train, test, numeric):
+def fit_rule(train, test, numeric, seed):
     """Past breaks per km — the baseline any model must beat. No expected counts."""
     return test.breaks_per_km.to_numpy(), None, {}
 
 
-def fit_isolation_forest(train, test, numeric):
+def fit_isolation_forest(train, test, numeric, seed):
     """Unsupervised: ranks pipes by how unusual their features are. Never sees the target."""
     pre = ColumnTransformer([("num", StandardScaler(), numeric),
                              ("cat", OneHotEncoder(handle_unknown="ignore", min_frequency=200), ["material"])])
-    model = make_pipeline(pre, IsolationForest(n_estimators=300, random_state=SEED))
+    model = make_pipeline(pre, IsolationForest(n_estimators=300, random_state=seed))
     model.fit(train)
     return -model.score_samples(test), None, {"n_estimators": 300}
 
 
-def fit_glm(train, test, numeric):
+def fit_glm(train, test, numeric, seed):
     """Poisson regression on break rate per km-year, weighted by exposure."""
     log1p = FunctionTransformer(np.log1p, feature_names_out="one-to-one")
     pre = ColumnTransformer([("num", make_pipeline(log1p, StandardScaler()), numeric),
@@ -74,7 +74,7 @@ LGBM_PARAMS = {"objective": "poisson", "n_estimators": 500, "learning_rate": 0.0
                "random_state": SEED, "verbose": -1}
 
 
-def fit_lgbm(train, test, numeric, params=LGBM_PARAMS):
+def fit_lgbm(train, test, numeric, seed):
     """Gradient boosting on break counts with log(exposure) as offset, so it predicts a rate per km-year."""
     cols = numeric + CATEGORICAL
     def prep(f):
@@ -82,6 +82,7 @@ def fit_lgbm(train, test, numeric, params=LGBM_PARAMS):
         for c in CATEGORICAL:
             x[c] = pd.Categorical(x[c], categories=sorted(train[c].dropna().unique()))
         return x
+    params = {**LGBM_PARAMS, "random_state": seed}
     model = lgb.LGBMRegressor(**params).fit(prep(train), train.target, init_score=np.log(exposure(train)))
     rate = np.exp(model.predict(prep(test), raw_score=True))
     importance = pd.Series(model.booster_.feature_importance("gain"), index=cols)
@@ -93,7 +94,7 @@ XGB_PARAMS = {"objective": "count:poisson", "n_estimators": 500, "learning_rate"
               "enable_categorical": True, "random_state": SEED}
 
 
-def fit_xgb(train, test, numeric, params=XGB_PARAMS):
+def fit_xgb(train, test, numeric, seed):
     """Same tree-boosting idea as LightGBM, but trees grow level by level; offset via base_margin."""
     cols = numeric + CATEGORICAL
     def prep(f):
@@ -101,6 +102,7 @@ def fit_xgb(train, test, numeric, params=XGB_PARAMS):
         for c in CATEGORICAL:
             x[c] = pd.Categorical(x[c], categories=sorted(train[c].dropna().unique()))
         return x
+    params = {**XGB_PARAMS, "random_state": seed}
     model = xgb.XGBRegressor(**params).fit(prep(train), train.target, base_margin=np.log(exposure(train)))
     rate = np.exp(model.predict(prep(test), output_margin=True, base_margin=np.zeros(len(test))))
     importance = pd.Series(model.feature_importances_, index=cols)
@@ -108,6 +110,7 @@ def fit_xgb(train, test, numeric, params=XGB_PARAMS):
 
 
 MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest, "glm": fit_glm, "lgbm": fit_lgbm, "xgb": fit_xgb}
+STOCHASTIC = {"iforest", "lgbm", "xgb"}
 
 
 def main():
@@ -115,6 +118,7 @@ def main():
     ap.add_argument("--model", choices=MODELS, required=True)
     ap.add_argument("--features", choices=FEATURE_SETS, default="base")
     ap.add_argument("--split", choices=SPLITS, default="validation")
+    ap.add_argument("--seeds", type=int, default=5, help="seeds to average for stochastic models")
     args = ap.parse_args()
 
     train_years, eval_year = SPLITS[args.split]
@@ -126,21 +130,29 @@ def main():
         mlflow.create_experiment("replacement-ranking", artifact_location=(ROOT / "mlruns").as_uri())
     mlflow.set_experiment("replacement-ranking")
     with mlflow.start_run(run_name=f"{args.model}-{args.features}-{args.split}"):
-        score, expected, params = MODELS[args.model](train, test, numeric)
-        importance = params.pop("importance", None)
-        mlflow.log_params({"model": args.model, "features": args.features, "split": args.split,
+        seeds = range(args.seeds if args.model in STOCHASTIC else 1)
+        per_seed = []
+        for seed in seeds:
+            score, expected, params = MODELS[args.model](train, test, numeric, seed)
+            importance = params.pop("importance", None)
+            m = recall_table(test, score)
+            if expected is not None:
+                cal = calibration_by_decile(test, expected)
+                m["expected_over_actual"] = cal.expected.sum() / cal.actual.sum()
+                m["top_decile_expected_over_actual"] = cal.expected.iloc[-1] / cal.actual.iloc[-1]
+            per_seed.append(m)
+        params.pop("random_state", None)
+        mlflow.log_params({"model": args.model, "features": args.features, "split": args.split, "n_seeds": len(seeds),
                            "train_years": train_years, "eval_year": eval_year, "n_features": len(numeric), **params})
-        metrics = recall_table(test, score)
+        metrics = pd.DataFrame(per_seed).mean().to_dict()
+        metrics["R@1%_seed_std"] = pd.DataFrame(per_seed)["R@1%"].std(ddof=0)
         if expected is not None:
-            cal = calibration_by_decile(test, expected)
-            metrics["expected_over_actual"] = cal.expected.sum() / cal.actual.sum()
-            metrics["top_decile_expected_over_actual"] = cal.expected.iloc[-1] / cal.actual.iloc[-1]
-            mlflow.log_text(cal.round(1).to_csv(), "calibration_by_decile.csv")
+            mlflow.log_text(cal.round(1).to_csv(), "calibration_by_decile_last_seed.csv")
         if importance is not None:
             mlflow.log_text(importance.sort_values(ascending=False).round(4).to_csv(), "feature_importance.csv")
         mlflow.log_metrics({k.replace("@", "_at_").replace("%", "pct"): v for k, v in metrics.items()})
         print(f"{args.model}-{args.features} on {eval_year}: " +
-              "  ".join(f"{k}={v:.3f}" for k, v in metrics.items() if "no_history" not in k))
+              "  ".join(f"{k}={v:.3f}" for k, v in metrics.items() if "no_history" not in k and "lift" not in k))
 
 
 if __name__ == "__main__":
