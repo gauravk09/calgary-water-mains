@@ -1,0 +1,15 @@
+stages:
+  download:
+    cmd: python src/download_data.py
+    deps:
+      - src/download_data.py
+    outs:
+      - data/raw
+  features:
+    cmd: python src/features.py
+    deps:
+      - src/data.py
+      - src/features.py
+      - data/raw
+    outs:
+      - data/features
