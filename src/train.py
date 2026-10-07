@@ -7,6 +7,7 @@ Usage:
 import argparse
 from pathlib import Path
 
+import lightgbm as lgb
 import mlflow
 import numpy as np
 import pandas as pd
@@ -65,7 +66,26 @@ def fit_glm(train, test, numeric):
     return rate, rate * exposure(test), {"alpha": 1e-3}
 
 
-MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest, "glm": fit_glm}
+LGBM_PARAMS = {"objective": "poisson", "n_estimators": 500, "learning_rate": 0.03, "num_leaves": 15,
+               "min_child_samples": 50, "subsample": 0.8, "subsample_freq": 1, "colsample_bytree": 0.8,
+               "random_state": SEED, "verbose": -1}
+
+
+def fit_lgbm(train, test, numeric, params=LGBM_PARAMS):
+    """Gradient boosting on break counts with log(exposure) as offset, so it predicts a rate per km-year."""
+    cols = numeric + CATEGORICAL
+    def prep(f):
+        x = f[cols].copy()
+        for c in CATEGORICAL:
+            x[c] = pd.Categorical(x[c], categories=sorted(train[c].dropna().unique()))
+        return x
+    model = lgb.LGBMRegressor(**params).fit(prep(train), train.target, init_score=np.log(exposure(train)))
+    rate = np.exp(model.predict(prep(test), raw_score=True))
+    importance = pd.Series(model.booster_.feature_importance("gain"), index=cols)
+    return rate, rate * exposure(test), {**params, "importance": importance / importance.sum()}
+
+
+MODELS = {"rule": fit_rule, "iforest": fit_isolation_forest, "glm": fit_glm, "lgbm": fit_lgbm}
 
 
 def main():
