@@ -13,7 +13,7 @@ Avathon AI/ML Hiring Challenge · **Track C — Classical ML** · Domain: water 
 | Deliverable | Link |
 |---|---|
 | Technical write-up (PDF, 2 pages) | [write-up/writeup.pdf](write-up/writeup.pdf) |
-| 5-minute walkthrough video | _link to be added_ |
+| 5-minute walkthrough video | [Watch on Loom](https://www.loom.com/share/ef116e65eedd4bc69a899acc32ca1abd) |
 | Code, results and reproduction steps | this repository |
 
 **Contents:** [Problem](#1-business-problem) · [Data & join](#2-data-and-cleaning) · [EDA](#3-what-the-data-shows) ·
