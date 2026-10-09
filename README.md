@@ -8,6 +8,14 @@ Avathon AI/ML Hiring Challenge · **Track C — Classical ML** · Domain: water 
 > years the model's list catches **17× more breaks than random — about 37 breaks avoided vs 14 for the best
 > simple rule**.
 
+## Deliverables
+
+| Deliverable | Link |
+|---|---|
+| Technical write-up (PDF, 2 pages) | [write-up/writeup.pdf](write-up/writeup.pdf) |
+| 5-minute walkthrough video | _link to be added_ |
+| Code, results and reproduction steps | this repository |
+
 **Contents:** [Problem](#1-business-problem) · [Data & join](#2-data-and-cleaning) · [EDA](#3-what-the-data-shows) ·
 [ML formulation](#4-machine-learning-formulation) · [Evaluation](#5-evaluation-design) · [Experiments](#6-experiments) ·
 [Fixes: before vs after](#7-design-fixes-before-vs-after) · [Final results](#8-final-results) ·
@@ -315,6 +323,7 @@ src/
 notebooks/           01 exploration, 02 SHAP explanations
 tests/               leakage test
 results/             charts, metrics, shortlist, reports, MLflow export
+write-up/            technical write-up (PDF + HTML source)
 ```
 
 Run modules from the repository root, e.g. `python -m src.pipeline.predict`.
