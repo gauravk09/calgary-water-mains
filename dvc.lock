@@ -27,13 +27,13 @@ stages:
       size: 2010
     - path: src/features.py
       hash: md5
-      md5: af61219c206f5fc8bf472a1146c00972
-      size: 4295
+      md5: 02b083df90e74e6c42301d256da6efbf
+      size: 4658
     outs:
     - path: data/features
       hash: md5
-      md5: eb75f1345cfce2585010d119df755ecd.dir
-      size: 14598013
+      md5: 3c0e52ad000644b1da77a2b5213c0602.dir
+      size: 15505599
       nfiles: 6
   features_annual:
     cmd: python src/features.py --horizon 1 --annual --out data/features_annual
@@ -49,11 +49,11 @@ stages:
       size: 2010
     - path: src/features.py
       hash: md5
-      md5: af61219c206f5fc8bf472a1146c00972
-      size: 4295
+      md5: 02b083df90e74e6c42301d256da6efbf
+      size: 4658
     outs:
     - path: data/features_annual
       hash: md5
-      md5: 9565011b8259532aa93c3fed55244ad7.dir
-      size: 75192872
+      md5: 68b9d3cf15e674ee4a6456c14c1a7e09.dir
+      size: 79740413
       nfiles: 30

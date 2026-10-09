@@ -22,10 +22,16 @@ MODES = {"A": "circular", "B": "split", "C": "corrosion", "D": "fitting",
          "E": "joint", "F": "diagonal", "G": "hole", "S": "saddle"}
 
 
-def usable_breaks(pipes, geoms):
-    """ACTIVE breaks linked to a pipe that already existed when it broke (see EDA Part 5)."""
+def all_breaks(geoms):
+    """Every recorded break with its nearest pipe, including breaks on pipes since replaced (RETIRED)."""
     b = link_breaks_to_pipes(load_breaks(), geoms)
     b["break_year"] = b.break_date.dt.year
+    return b
+
+
+def usable_breaks(pipes, geoms):
+    """ACTIVE breaks linked to a pipe that already existed when it broke (see EDA Part 5)."""
+    b = all_breaks(geoms)
     b = b.join(pipes.year.rename("install_year"), on="pipe_idx")
     b = b[(b.STATUS == "ACTIVE") & (b.install_year <= b.break_year)].reset_index(drop=True)
     letters = b.BREAK_TYPE.str.replace(r"\d", "", regex=True)
@@ -35,7 +41,11 @@ def usable_breaks(pipes, geoms):
 
 
 def neighbour_pairs(breaks, geoms, radius):
-    """(pipe, break year) pairs for breaks within `radius` m of a pipe, excluding the pipe's own breaks."""
+    """(pipe, break year) pairs for breaks within `radius` m of a pipe, excluding breaks matched to the pipe itself.
+
+    Uses all breaks, RETIRED included: on a planning date every past break nearby is known, even on a pipe
+    that was replaced later.
+    """
     tree = STRtree([Point(x, y) for x, y in zip(breaks.x, breaks.y)])
     pipe_rows, break_rows = tree.query([g.buffer(radius) for g in geoms], predicate="intersects")
     pairs = pd.DataFrame({"pipe_idx": pipe_rows, "break_year": breaks.break_year.values[break_rows]})
@@ -82,7 +92,8 @@ def main():
 
     pipes, geoms = load_pipes()
     breaks = usable_breaks(pipes, geoms)
-    neighbours = {r: neighbour_pairs(breaks, geoms, r) for r in RADII_M}
+    everything = all_breaks(geoms)
+    neighbours = {r: neighbour_pairs(everything, geoms, r) for r in RADII_M}
     args.out.mkdir(parents=True, exist_ok=True)
     for year in years:
         frame = build_frame(year, pipes, breaks, neighbours, args.horizon)
