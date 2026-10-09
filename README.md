@@ -73,7 +73,7 @@ pip install -r requirements.txt
 6. `python src/drift_report.py` — Evidently feature-drift report
 7. `python src/monitor.py` — yearly calibration monitor (Evidently test: actual breaks within ±15% of predicted; alarm after two failing years)
 8. `python -m pytest tests/` — leakage test
-9. `mlflow ui --backend-store-uri sqlite:///mlflow.db` — compare all runs
+9. `mlflow ui --backend-store-uri sqlite:///mlflow.db` — compare all runs (exported log: `results/mlflow_experiment_log.csv`; screenshot: `results/mlflow_run_comparison.jpg`)
 
 All random seeds are fixed (stochastic models are averaged over several seeds).
 
