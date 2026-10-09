@@ -210,11 +210,11 @@ remainder), so "oldest first" is the wrong rule.
 [`tests/test_no_leakage.py`](tests/test_no_leakage.py): invent breaks in/after the planning year → features must
 not change (verified to fail if one `<` becomes `<=`).
 
-**Feature drift** ([`src/drift_report.py`](src/drift_report.py), Evidently, validation vs test years): **pipe age**
+**Feature drift** ([`src/pipeline/drift_report.py`](src/pipeline/drift_report.py), Evidently, validation vs test years): **pipe age**
 and **nearby breaks within 300 m** drifted (scores 0.13–0.14 > 0.1). The label was not flagged although the break
 rate per pipe-year fell 37% — mostly-zero labels hide rate changes.
 
-**Calibration monitor** ([`src/monitor.py`](src/monitor.py)): an Evidently test each year — actual breaks within
+**Calibration monitor** ([`src/pipeline/monitor.py`](src/pipeline/monitor.py)): an Evidently test each year — actual breaks within
 ±15% of predicted; alarm after two consecutive failures.
 
 ![Calibration monitor 2016–2025](results/calibration_monitor.png)
@@ -235,10 +235,10 @@ or rescale. The model lags the continuing decline in breaks.
 **Once a year, before the capital plan (1 January):**
 
 ```
-dvc repro                                           refresh data, rebuild features
-python src/train_final.py                           retrain on every labelled year → new model version in MLflow
-python src/predict.py --year 2026 --budget 0.0025   → results/shortlist_2026.csv
-python src/monitor.py                               last year's predicted vs actual; alarm rule
+dvc repro                                                    refresh data, rebuild features
+python -m src.pipeline.train                                 retrain on every labelled year → new model version in MLflow
+python -m src.pipeline.predict --year 2026 --budget 0.0025   → results/shortlist_2026.csv
+python -m src.pipeline.monitor                               last year's predicted vs actual; alarm rule
 ```
 
 **Output — [`results/shortlist_2026.csv`](results/shortlist_2026.csv)** (model `pipe-break-ranker` v2; 168 pipes, 13.5 km):
@@ -278,13 +278,13 @@ pip install -r requirements.txt
 |---|---|---|
 | 1 | `dvc repro` | data + feature tables (`dvc.lock` records file hashes) |
 | 2 | `notebooks/01_eda.ipynb` | exploration |
-| 3 | `python src/train.py --model lgbm --features nearby` | model-family runs (`rule`, `iforest`, `glm`, `lgbm`, `xgb`) |
-| 4 | `python src/tune.py` | regularisation tuning on validation |
-| 5 | `python src/rolling.py --design annual --window all --model lgbm [--split test]` | final validation / test |
-| 6 | `python src/score_table.py` | train vs validation vs test |
-| 7 | `python src/train_final.py` then `python src/predict.py --year 2026` | registered model + shortlist |
+| 3 | `python -m src.experiments.compare_models --model lgbm --features nearby` | model-family runs (`rule`, `iforest`, `glm`, `lgbm`, `xgb`) |
+| 4 | `python -m src.experiments.tune` | regularisation tuning on validation |
+| 5 | `python -m src.experiments.rolling --design annual --window all --model lgbm [--split test]` | final validation / test |
+| 6 | `python -m src.experiments.score_table` | train vs validation vs test |
+| 7 | `python -m src.pipeline.train` then `python -m src.pipeline.predict --year 2026` | registered model + shortlist |
 | 8 | `notebooks/02_model_explanations.ipynb` | SHAP |
-| 9 | `python src/plot_results.py`, `python src/drift_report.py`, `python src/monitor.py` | charts, drift, calibration monitor |
+| 9 | `python -m src.experiments.plot_results`, `python -m src.pipeline.drift_report`, `python -m src.pipeline.monitor` | charts, drift, calibration monitor |
 | 10 | `python -m pytest tests/` | leakage test |
 | 11 | `mlflow ui --backend-store-uri sqlite:///mlflow.db` | browse runs |
 
@@ -292,22 +292,29 @@ Python 3.11; dependencies pinned; seeds fixed (stochastic models averaged over s
 
 ## 14. Repository structure
 
+Production code (what runs every year) is separate from the experiments that justified each choice.
+
 ```
 src/
-  download_data.py   fetch the Calgary datasets
   data.py            load tables, convert to metres, link breaks to nearest pipe
   features.py        pipe × planning-date feature tables (5-year and annual)
-  train.py           models (rule, Isolation Forest, GLM, LightGBM, XGBoost) + MLflow logging
-  tune.py            regularisation tuning on validation
   evaluate.py        recall at a length budget, lift, calibration
-  rolling.py         sliding-window evaluation, pooled metrics
-  score_table.py     train vs validation vs test
-  train_final.py     train on all years, register model in MLflow
-  predict.py         load registered model → yearly shortlist with SHAP reasons
-  plot_results.py    test-recall chart
-  drift_report.py    Evidently feature drift
-  monitor.py         yearly calibration monitor (Evidently tests)
+  model.py           feature sets, frozen settings, LightGBM Poisson model
+  pipeline/          ← the yearly production job
+    download_data.py   fetch the Calgary datasets
+    train.py           train on all labelled years, register model in MLflow
+    predict.py         load registered model → shortlist with SHAP reasons
+    monitor.py         yearly calibration test (Evidently)
+    drift_report.py    feature drift (Evidently)
+  experiments/       ← how the choices were made
+    compare_models.py  rule, Isolation Forest, GLM, LightGBM, XGBoost + MLflow logging
+    tune.py            regularisation tuning on validation
+    rolling.py         sliding-window evaluation, pooled metrics
+    score_table.py     train vs validation vs test
+    plot_results.py    test-recall chart
 notebooks/           01 exploration, 02 SHAP explanations
 tests/               leakage test
 results/             charts, metrics, shortlist, reports, MLflow export
 ```
+
+Run modules from the repository root, e.g. `python -m src.pipeline.predict`.
