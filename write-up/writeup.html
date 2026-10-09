@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8"><title>Write-up — Gaurav Kumar — Track C</title>
+<style>
+@page { size: A4; margin: 11mm 13mm; }
+body { font-family: "Helvetica Neue", Arial, sans-serif; font-size: 11pt; line-height: 1.32; color: #111; margin: 0; }
+h1 { font-size: 14.5pt; margin: 0 0 1mm; }
+.meta { font-size: 11pt; color: #444; margin-bottom: 3mm; }
+h2 { font-size: 12pt; margin: 3.2mm 0 1.2mm; border-bottom: 1px solid #bbb; padding-bottom: 0.6mm; }
+p { margin: 0 0 1.6mm; }
+ul { margin: 0 0 1.6mm; padding-left: 5mm; }
+li { margin-bottom: 0.7mm; }
+table { border-collapse: collapse; width: 100%; margin: 1mm 0 2mm; font-size: 11pt; }
+th, td { border: 1px solid #ccc; padding: 0.8mm 1.6mm; text-align: left; vertical-align: top; }
+th { background: #f1f1f1; }
+tr { break-inside: avoid; }
+td.n { text-align: right; white-space: nowrap; }
+b { font-weight: 600; }
+figure { margin: 1mm 0 1.5mm; break-inside: avoid; }
+figure img { width: 100%; display: block; }
+figcaption { font-size: 11pt; color: #444; margin-top: 0.5mm; }
+.row { display: flex; gap: 3mm; }
+.row figure { flex: 1; }
+</style></head>
+<body>
+<h1>Ranking Calgary's water mains for replacement</h1>
+<div class="meta"><b>Gaurav Kumar</b> · <b>Track C — Classical ML</b> · Own domain, framed nearest S1 (detect supply disruptions early) · Repo: github.com/gauravk09/calgary-water-mains</div>
+
+<h2>1. Problem &amp; domain</h2>
+<p>Calgary runs ~5,400 km of water mains. Every break is repaired as an emergency, but the city can only <b>replace</b> ~8–15 km a year (0.15–0.3% of the network). Each January the asset team must choose which pipes to replace so the most future breaks are avoided. A break is a disruption of the water supply network; the shortlist is preventive maintenance of that supply chain. The data is real and open (City of Calgary): 37,538 breaks since 1956 with failure mode and location, and 60,740 pipe segments with material, diameter, install year and length. Chosen after screening ~20 public datasets for one whose value can be measured without invented costs: <b>breaks avoided per km replaced</b>.</p>
+<p><b>Why Track C:</b> structured attributes and event history, a rare count target, and explanations an engineer can read — classical models with SHAP fit; LLM tracks add cost without signal.</p>
+
+<h2>2. Approach &amp; algorithm decisions</h2>
+<table>
+<tr><th style="width:21%">Decision</th><th style="width:40%">Choice</th><th>Alternative considered → why rejected</th></tr>
+<tr><td>Unit &amp; label</td><td>Pipe × 1 January; label = breaks on that pipe during the year (all failure modes)</td><td>Yes/no → a pipe breaking 3× avoids 3 breaks; counts scale cleanly with length</td></tr>
+<tr><td>Linking</td><td>Breaks carry no pipe ID → nearest pipe (99% within 1.3 m); keep breaks on pipes still in the ground</td><td>All breaks → 59% are on pipes since replaced, absent from the inventory</td></tr>
+<tr><td>Model</td><td><b>LightGBM, Poisson objective, log(length) offset</b>, regularised (min leaf 2,000, L2 10, tuned on validation) → breaks per km-year</td><td>Poisson GLM → over-predicts counts 23–33% (misses material × history interactions). XGBoost → same family, tied. Isolation Forest → finds <i>unusual</i> pipes, not risky ones (≈0 recall on never-broken pipes). Neural net → boosted trees usually match it on tabular data, with clearer explanations</td></tr>
+<tr><td>Features</td><td>Material, zone, diameter, age, length; own history (count, per km, recency); <b>breaks on other pipes within 50/150/300 m</b>, incl. since-replaced pipes — all before 1 January</td><td>Past failure types → no gain; break coding changed around 2000</td></tr>
+<tr><td>Split</td><td>Sliding window: for each year train on all earlier years. Validation 2016–20 (every choice), test 2021–25 (once)</td><td>5-year snapshots → tied but stale. 4-year window → worse (6.9 vs 7.3% R@1%): history beats recency</td></tr>
+<tr><td>Metric</td><td><b>Recall at 0.25% of network length per year</b> (one year's budget), pooled over 5 years; lift = recall ÷ budget</td><td>Accuracy → 99.6% of pipe-years have no break. AUC → averages over budgets no city funds</td></tr>
+<tr><td>Calibration</td><td>Raw predicted counts</td><td>Rescale by last year's actual/predicted → worse on validation (0.96)</td></tr>
+</table>
+<p><b>Assumptions and how they were checked:</b> breaks follow a rate proportional to length (validation predicted/actual = 1.04); the nearest pipe is the broken pipe (distance distribution); replacement prevents all failure modes on the segment and cost scales with length (stated, not testable here). <b>Imbalance:</b> 99.6% zeros are handled by modelling counts with an exposure offset rather than resampling, which keeps predicted counts calibrated. <b>Lessons:</b> seed-averaged comparisons (one seed flipped a ranking); a train-vs-held-out check showed memorising (lift 27× vs 8.8×) → regularisation cut it to 15.5× vs 8.8×.</p>
+
+<h2>3. Results &amp; error analysis (test 2021–2025, 855 breaks)</h2>
+<div class="row">
+<figure><img src="../results/test_recall.png"><figcaption>Fig 1. Breaks caught: random vs rule vs model. Lift at the real budget: rule 6.6×, model 17.3×.</figcaption></figure>
+<figure><img src="../results/calibration_monitor.png"><figcaption>Fig 2. Yearly calibration monitor (Evidently test, ±15%): 2021 and 2025 fail; alarm needs two in a row.</figcaption></figure>
+</div>
+<p><b>Business impact:</b> at Calgary's real budget (0.25% of length a year) the model catches 4.3% of breaks vs 1.6% for the rule — <b>~37 vs 14 breaks avoided over five years</b>, four to five fewer emergency digs a year for the same capital spend. R@1% is 10.4% overall and 11.3% on never-broken pipes (rule 2.0%). Validation lift was 9.0×; one year's budget catches 3–14 breaks, so the honest range is <b>9–17× random</b>. SHAP (Fig 3) shows material dominates, then recent breaks nearby, then the pipe's own record; among cast iron, risk <i>falls</i> with age past ~60 years (the oldest survivors are the sturdier remainder), so "oldest first" is the wrong rule.</p>
+<figure style="width:78%;margin-left:auto;margin-right:auto"><img src="../results/shap_three_pipes.png"><figcaption>Fig 3. Why three pipes rank where they do (SHAP as multipliers on a typical pipe's break rate): cast iron, its own break record and recent breaks nearby lift the top pipes; PVC pulls the typical pipe down.</figcaption></figure>
+<p><b>Where it fails:</b> (1) 85% of pipes that broke in 2021–2025 broke only once, often on pipes indistinguishable from their neighbours — much of the gap to perfect foresight is chance, not missing modelling; (2) the top of the list is dominated by repeat offenders, where the simple rule is already as good; the model's gain comes from pipes with no history; (3) <b>calibration on test: predicted/actual = 1.14</b> — break rates kept falling faster than the model expected.</p>
+
+<h2>4. Production &amp; limitations</h2>
+<p><b>Production:</b> retrain every 1 January on all history, publish the ranked shortlist with per-pipe SHAP reasons, and let the engineer add local knowledge before approving. Monitoring covers two concrete failure modes: <b>(a) falling break rates → over-prediction</b>, caught by a yearly Evidently test (actual within ±15% of predicted; alarm after two failing years) — replayed over 2016–2025 it fails in 2021 and 2025; a second consecutive failure would trigger a retrain or rescale; <b>(b) shifting inputs</b> (ageing network, recording changes) via an Evidently feature-drift report — it flagged pipe age and nearby breaks but <i>not</i> the label, because mostly-zero labels hide rate changes, which is why (a) is needed. A pytest test proves features cannot see future breaks.</p>
+<p><b>Limitation to fix before deployment:</b> the pipe inventory is a 2026 snapshot, so every historical training year only contains pipes that survived to 2026 — the worst pipes, already replaced, are missing, which likely flatters the test score. Historical inventories (or the replacement log) are needed; repair-cost data would also let breaks be weighted by severity and turned into dollars.</p>
+</body></html>
