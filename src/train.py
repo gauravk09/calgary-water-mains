@@ -73,7 +73,7 @@ def fit_glm(train, test, numeric, seed):
 
 
 LGBM_PARAMS = {"objective": "poisson", "n_estimators": 500, "learning_rate": 0.03, "num_leaves": 15,
-               "min_child_samples": 50, "subsample": 0.8, "subsample_freq": 1, "colsample_bytree": 0.8,
+               "min_child_samples": 2000, "reg_lambda": 10.0, "subsample": 0.8, "subsample_freq": 1, "colsample_bytree": 0.8,
                "random_state": SEED, "verbose": -1}
 
 
