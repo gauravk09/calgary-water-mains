@@ -45,9 +45,31 @@ with/without failure types and nearby breaks; 5-year vs annual vs 4-year sliding
 | Recall at 1% on pipes with no break history | 2.0% | **11.8%** |
 | Predicted ÷ actual breaks | — | 1.19 |
 
+![Breaks caught on the test years by random, rule and model](results/test_recall.png)
+
 The model roughly doubles the breaks avoided per km replaced compared with the best simple rule, mainly by
 finding pipes that have not broken yet. Validation lift was 8.2×; per-year results are noisy because one
 year's budget catches only a handful of breaks.
+
+### Why pipes rank where they do (SHAP)
+
+Each factor is shown as a multiplier on a typical pipe's break rate. Material dominates, then recent breaks
+on nearby pipes, then the pipe's own record. The top-ranked pipe is driven by its neighbourhood; the
+mid-list pipe by its own break record.
+
+![SHAP explanations for three pipes](results/shap_three_pipes.png)
+
+### Monitoring
+
+Feature drift (Evidently, `results/drift_report.html`) flagged only pipe age. The real degradation —
+falling break rates — is caught by a yearly Evidently test: actual breaks must be within ±15% of predicted,
+with an alarm after two failing years.
+
+![Calibration monitor 2016–2025](results/calibration_monitor.png)
+
+### Experiment tracking (MLflow)
+
+![MLflow run comparison](results/mlflow_run_comparison.jpg)
 
 **Limitations:** the pipe inventory is a 2026 snapshot, so historical snapshots contain only pipes that
 survived to 2026; break recording changed around 2000; on the test years the model over-predicted break
@@ -71,9 +93,10 @@ pip install -r requirements.txt
 4. `python src/rolling.py --design annual --window all --model lgbm` — final annual design on validation; add `--split test` for the test years
 5. `notebooks/02_model_explanations.ipynb` — SHAP explanations
 6. `python src/drift_report.py` — Evidently feature-drift report
-7. `python src/monitor.py` — yearly calibration monitor (Evidently test: actual breaks within ±15% of predicted; alarm after two failing years)
-8. `python -m pytest tests/` — leakage test
-9. `mlflow ui --backend-store-uri sqlite:///mlflow.db` — compare all runs (exported log: `results/mlflow_experiment_log.csv`; screenshot: `results/mlflow_run_comparison.jpg`)
+7. `python src/plot_results.py` — test-recall chart
+8. `python src/monitor.py` — yearly calibration monitor (Evidently test: actual breaks within ±15% of predicted; alarm after two failing years)
+9. `python -m pytest tests/` — leakage test
+10. `mlflow ui --backend-store-uri sqlite:///mlflow.db` — compare all runs (exported log: `results/mlflow_experiment_log.csv`; screenshot: `results/mlflow_run_comparison.jpg`)
 
 All random seeds are fixed (stochastic models are averaged over several seeds).
 
@@ -83,6 +106,5 @@ All random seeds are fixed (stochastic models are averaged over several seeds).
 src/        download, linking, features, training, evaluation, drift report
 notebooks/  01 data exploration, 02 model explanations
 tests/      leakage test
-results/    figures, metrics, drift report
-write-up/   technical write-up (PDF)
+results/    figures, metrics, drift and monitoring reports, MLflow log
 ```
