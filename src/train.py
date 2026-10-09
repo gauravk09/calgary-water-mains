@@ -77,8 +77,8 @@ LGBM_PARAMS = {"objective": "poisson", "n_estimators": 500, "learning_rate": 0.0
                "random_state": SEED, "verbose": -1}
 
 
-def fit_lgbm(train, test, numeric, seed):
-    """Gradient boosting on break counts with log(exposure) as offset, so it predicts a rate per km-year."""
+def train_lgbm(train, numeric, seed):
+    """Fit LightGBM on break counts with log(exposure) as offset; returns the model and its input builder."""
     cols = numeric + CATEGORICAL
     def prep(f):
         x = f[cols].copy()
@@ -87,6 +87,14 @@ def fit_lgbm(train, test, numeric, seed):
         return x
     params = {**LGBM_PARAMS, "random_state": seed}
     model = lgb.LGBMRegressor(**params).fit(prep(train), train.target, init_score=np.log(exposure(train)))
+    return model, prep
+
+
+def fit_lgbm(train, test, numeric, seed):
+    """Gradient boosting on break counts with log(exposure) as offset, so it predicts a rate per km-year."""
+    model, prep = train_lgbm(train, numeric, seed)
+    cols = numeric + CATEGORICAL
+    params = {**LGBM_PARAMS, "random_state": seed}
     rate = np.exp(model.predict(prep(test), raw_score=True))
     importance = pd.Series(model.booster_.feature_importance("gain"), index=cols)
     return rate, rate * exposure(test), {**params, "importance": importance / importance.sum()}
