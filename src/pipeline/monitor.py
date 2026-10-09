@@ -5,17 +5,17 @@ and an Evidently test checks the year's actual break count against the predicted
 the check fails two years running.
 
 Usage:
-    python src/monitor.py      # results/calibration_monitor.{csv,png}, results/monitor_latest_year.html
+    python -m src.pipeline.monitor      # results/calibration_monitor.{csv,png}, results/monitor_latest_year.html
 """
 import matplotlib.pyplot as plt
 import mlflow
+import numpy as np
 import pandas as pd
 from evidently import Report
 from evidently.metrics import SumValue
 from evidently.tests import gte, lte
 
-from rolling import annual_scores
-from train import FEATURE_SETS, ROOT
+from src.model import FEATURE_SETS, ROOT, exposure, load_annual, train_lgbm
 
 YEARS = range(2016, 2026)
 TOLERANCE = 0.15
@@ -23,7 +23,9 @@ RESULTS = ROOT / "results"
 
 
 def check_year(year):
-    pipes, _, expected = annual_scores(year, "all", "lgbm", FEATURE_SETS["nearby"], seed=0)
+    model, prep = train_lgbm(load_annual(range(1996, year)).reset_index(drop=True), FEATURE_SETS["nearby"], seed=0)
+    pipes = load_annual([year])
+    expected = np.exp(model.predict(prep(pipes), raw_score=True)) * exposure(pipes)
     data = pd.DataFrame({"prediction": expected, "target": pipes.target.to_numpy()})
     predicted = data.prediction.sum()
     report = Report([SumValue(column="prediction"),

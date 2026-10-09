@@ -4,7 +4,7 @@ For each setting and each validation year Y: train on 1996..Y-1, score year Y (h
 (in-sample). A large in-sample vs held-out gap means the model memorises training breaks.
 
 Usage:
-    python src/tune.py
+    python -m src.experiments.tune
 """
 import itertools
 
@@ -12,17 +12,16 @@ import mlflow
 import numpy as np
 import pandas as pd
 
-from evaluate import caught_at_budget
-from rolling import load_annual
-from train import FEATURE_SETS, LGBM_PARAMS, ROOT, exposure, train_lgbm
-import train as T
+import src.model as M
+from src.evaluate import caught_at_budget
+from src.model import FEATURE_SETS, LGBM_PARAMS, ROOT, exposure, load_annual, train_lgbm
 
 GRID = {"min_child_samples": [50, 500, 2000], "n_estimators": [150, 500], "reg_lambda": [0.0, 10.0]}
 YEARS = range(2016, 2021)
 
 
 def evaluate_setting(params):
-    T.LGBM_PARAMS = {**LGBM_PARAMS, **params}
+    M.LGBM_PARAMS = {**LGBM_PARAMS, **params}
     held, inside, short_share = [], [], []
     for year in YEARS:
         model, prep = train_lgbm(load_annual(range(1996, year)).reset_index(drop=True), FEATURE_SETS["nearby"], seed=0)

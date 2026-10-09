@@ -6,14 +6,13 @@ For each graded year Y the model is trained on 1996..Y-1, then scored on
 Scores are pooled over the five years of each split.
 
 Usage:
-    python src/score_table.py      # results/scores_train_val_test.csv
+    python -m src.experiments.score_table      # results/scores_train_val_test.csv
 """
 import numpy as np
 import pandas as pd
 
-from evaluate import caught_at_budget
-from rolling import load_annual
-from train import FEATURE_SETS, ROOT, exposure, train_lgbm
+from src.evaluate import caught_at_budget
+from src.model import FEATURE_SETS, ROOT, exposure, load_annual, train_lgbm
 
 SPLITS = {"validation": range(2016, 2021), "test": range(2021, 2026)}
 BUDGETS = [0.0025, 0.01]

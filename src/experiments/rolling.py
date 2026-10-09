@@ -5,25 +5,19 @@ Designs:
   annual     a fresh model every 1 January, trained on 1-year snapshots from the previous `window` years
 
 Usage:
-    python src/rolling.py --design annual --window 4 --model lgbm --features nearby
-    python src/rolling.py --design five_year --model lgbm --features nearby
+    python -m src.experiments.rolling --design annual --window 4 --model lgbm --features nearby
+    python -m src.experiments.rolling --design five_year --model lgbm --features nearby
 """
 import argparse
-from pathlib import Path
-
 import mlflow
 import numpy as np
 import pandas as pd
 
-from evaluate import BUDGETS, caught_at_budget, recall_table
-from train import FEATURE_SETS, MODELS, ROOT, STOCHASTIC, load
+from src.evaluate import BUDGETS, caught_at_budget, recall_table
+from src.experiments.compare_models import MODELS, STOCHASTIC
+from src.model import FEATURE_SETS, ROOT, load, load_annual
 
-ANNUAL_DIR = ROOT / "data" / "features_annual"
 YEARS = {"validation": range(2016, 2021), "test": range(2021, 2026)}
-
-
-def load_annual(years):
-    return pd.concat([pd.read_parquet(ANNUAL_DIR / f"frame_{y}.parquet") for y in years])
 
 
 def annual_scores(year, window, model, numeric, seed):

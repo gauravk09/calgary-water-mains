@@ -1,8 +1,8 @@
 """Build one row per (pipe, planning date) with features known at that date and the 5-year break count.
 
 Usage:
-    python src/features.py                                   # 5-year horizon, planning dates every 5 years
-    python src/features.py --horizon 1 --annual --out data/features_annual
+    python -m src.features                                   # 5-year horizon, planning dates every 5 years
+    python -m src.features --horizon 1 --annual --out data/features_annual
 """
 import argparse
 from pathlib import Path
@@ -12,7 +12,7 @@ import pandas as pd
 from shapely.geometry import Point
 from shapely.strtree import STRtree
 
-from data import link_breaks_to_pipes, load_breaks, load_pipes
+from src.data import link_breaks_to_pipes, load_breaks, load_pipes
 
 OUT_DIR = Path(__file__).resolve().parent.parent / "data" / "features"
 PLANNING_YEARS = [1996, 2001, 2006, 2011, 2016, 2021]

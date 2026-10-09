@@ -1,15 +1,14 @@
 """Data drift between the validation years (2016-2020) and the test years (2021-2025), with Evidently.
 
 Usage:
-    python src/drift_report.py      # writes results/drift_report.html and logs it to MLflow
+    python -m src.pipeline.drift_report      # writes results/drift_report.html and logs it to MLflow
 """
 import mlflow
 import pandas as pd
 from evidently import Report
 from evidently.presets import DataDriftPreset
 
-from rolling import load_annual
-from train import CATEGORICAL, FEATURE_SETS, ROOT
+from src.model import CATEGORICAL, FEATURE_SETS, ROOT, load_annual
 
 COLUMNS = FEATURE_SETS["nearby"] + CATEGORICAL + ["target"]
 SAMPLE = 50_000

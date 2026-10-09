@@ -1,12 +1,12 @@
 schema: '2.0'
 stages:
   download:
-    cmd: python src/download_data.py
+    cmd: python -m src.pipeline.download_data
     deps:
-    - path: src/download_data.py
+    - path: src/pipeline/download_data.py
       hash: md5
-      md5: d72a917925fe8a992c9ee85417c6df07
-      size: 924
+      md5: 33cbf429a11fc6f2f36a5a30f3fdb658
+      size: 930
     outs:
     - path: data/raw
       hash: md5
@@ -14,7 +14,7 @@ stages:
       size: 24154493
       nfiles: 2
   features:
-    cmd: python src/features.py
+    cmd: python -m src.features
     deps:
     - path: data/raw
       hash: md5
@@ -27,8 +27,8 @@ stages:
       size: 2010
     - path: src/features.py
       hash: md5
-      md5: 02b083df90e74e6c42301d256da6efbf
-      size: 4658
+      md5: 033e1f7b1c8ba7c87301684bb402cf36
+      size: 4662
     outs:
     - path: data/features
       hash: md5
@@ -36,7 +36,7 @@ stages:
       size: 15505599
       nfiles: 6
   features_annual:
-    cmd: python src/features.py --horizon 1 --annual --out data/features_annual
+    cmd: python -m src.features --horizon 1 --annual --out data/features_annual
     deps:
     - path: data/raw
       hash: md5
@@ -49,8 +49,8 @@ stages:
       size: 2010
     - path: src/features.py
       hash: md5
-      md5: 02b083df90e74e6c42301d256da6efbf
-      size: 4658
+      md5: 033e1f7b1c8ba7c87301684bb402cf36
+      size: 4662
     outs:
     - path: data/features_annual
       hash: md5

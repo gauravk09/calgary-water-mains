@@ -1,7 +1,7 @@
 """Load the registered model and produce the replacement shortlist for a planning year.
 
 Usage:
-    python src/predict.py --year 2026 --budget 0.0025      # results/shortlist_2026.csv
+    python -m src.pipeline.predict --year 2026 --budget 0.0025      # results/shortlist_2026.csv
 """
 import argparse
 
@@ -11,10 +11,10 @@ import numpy as np
 import pandas as pd
 import shap
 
-from data import load_pipes
-from features import RADII_M, all_breaks, build_frame, neighbour_pairs, usable_breaks
-from train import ROOT, exposure
-from train_final import MODEL_NAME
+from src.data import load_pipes
+from src.features import RADII_M, all_breaks, build_frame, neighbour_pairs, usable_breaks
+from src.model import ROOT, exposure
+from src.pipeline.train import MODEL_NAME
 
 MIN_REPLACEABLE_M = 10
 

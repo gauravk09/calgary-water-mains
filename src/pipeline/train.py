@@ -1,13 +1,12 @@
 """Train the production model on every labelled year and register it in MLflow.
 
 Usage:
-    python src/train_final.py      # registers model "pipe-break-ranker" (new version each run)
+    python -m src.pipeline.train      # registers model "pipe-break-ranker" (new version each run)
 """
 import mlflow
 import mlflow.lightgbm
 
-from rolling import load_annual
-from train import CATEGORICAL, FEATURE_SETS, LGBM_PARAMS, ROOT, train_lgbm
+from src.model import CATEGORICAL, FEATURE_SETS, LGBM_PARAMS, ROOT, load_annual, train_lgbm
 
 MODEL_NAME = "pipe-break-ranker"
 FEATURES = "nearby"

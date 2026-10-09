@@ -1,12 +1,12 @@
 """Bar chart of test-year recall: random vs past-breaks rule vs model, from the logged results.
 
 Usage:
-    python src/plot_results.py      # results/test_recall.png
+    python -m src.experiments.plot_results      # results/test_recall.png
 """
 import matplotlib.pyplot as plt
 import pandas as pd
 
-from train import ROOT
+from src.model import ROOT
 
 r = pd.read_csv(ROOT / "results" / "annual_design_validation_and_test.csv").set_index("run")
 rule, model = r.loc["annual-wall-rule-nearby-test"], r.loc["annual-wall-lgbm-nearby-test"]

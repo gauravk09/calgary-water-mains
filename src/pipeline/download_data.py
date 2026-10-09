@@ -5,12 +5,12 @@ Sources (Open Government Licence - City of Calgary):
   Public Water Main:  https://data.calgary.ca/Environment/Public-Water-Main/w6h9-w33i
 
 Usage:
-    python src/download_data.py
+    python -m src.pipeline.download_data
 """
 from pathlib import Path
 from urllib.request import urlretrieve
 
-RAW_DIR = Path(__file__).resolve().parent.parent / "data" / "raw"
+RAW_DIR = Path(__file__).resolve().parents[2] / "data" / "raw"
 FILES = {
     "breaks.csv": "https://data.calgary.ca/api/views/dpcu-jr23/rows.csv?accessType=DOWNLOAD",
     "pipes.geojson": "https://data.calgary.ca/api/geospatial/w6h9-w33i?method=export&format=GeoJSON",

@@ -1,12 +1,12 @@
 stages:
   download:
-    cmd: python src/download_data.py
+    cmd: python -m src.pipeline.download_data
     deps:
-      - src/download_data.py
+      - src/pipeline/download_data.py
     outs:
       - data/raw
   features:
-    cmd: python src/features.py
+    cmd: python -m src.features
     deps:
       - src/data.py
       - src/features.py
@@ -14,7 +14,7 @@ stages:
     outs:
       - data/features
   features_annual:
-    cmd: python src/features.py --horizon 1 --annual --out data/features_annual
+    cmd: python -m src.features --horizon 1 --annual --out data/features_annual
     deps:
       - src/data.py
       - src/features.py

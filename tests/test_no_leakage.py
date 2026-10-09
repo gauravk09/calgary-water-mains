@@ -4,8 +4,8 @@ from pathlib import Path
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
-from features import MODES, RADII_M, build_frame  # noqa: E402
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+from src.features import MODES, RADII_M, build_frame  # noqa: E402
 
 PLANNING_YEAR = 2016
 
